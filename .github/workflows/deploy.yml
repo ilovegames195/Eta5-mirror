@@ -50,6 +50,69 @@ jobs:
             --execute robots=on \
             --no-verbose \
             'https://eta5.vercel.app/' || true
+          # Dynamic launcher routes are not discoverable as ordinary links.
+          wget \
+            --page-requisites \
+            --convert-links \
+            --adjust-extension \
+            --no-host-directories \
+            --directory-prefix=_site \
+            --timeout=20 \
+            --tries=2 \
+            --no-verbose \
+            -O _site/play.html \
+            'https://eta5.vercel.app/play' || true
+          mkdir -p _site/gta3
+          wget \
+            --recursive \
+            --level=3 \
+            --page-requisites \
+            --convert-links \
+            --adjust-extension \
+            --no-parent \
+            --no-host-directories \
+            --directory-prefix=_site \
+            --timeout=20 \
+            --tries=2 \
+            --no-verbose \
+            'https://eta5.vercel.app/gta3/index.html' || true
+
+          # Keep navigation inside this GitHub Pages project and remove
+          # third-party scripts/links that can redirect visitors elsewhere.
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('_site')
+          for path in root.rglob('*'):
+              if not path.is_file() or path.suffix.lower() not in {'.html', '.js', '.css'}:
+                  continue
+              text = path.read_text(encoding='utf-8', errors='ignore')
+              if path.suffix.lower() == '.html':
+                  if '<base ' not in text.lower():
+                      text = re.sub(
+                          r'<head([^>]*)>',
+                          r'<head\1><base href="/Eta5-mirror/">',
+                          text, count=1, flags=re.I,
+                      )
+                  text = re.sub(
+                      r'<script\b[^>]*\bsrc=["\'](?:https?:)?//[^"\']+["\'][^>]*>\s*</script>',
+                      '', text, flags=re.I,
+                  )
+                  text = re.sub(
+                      r'(<a\b[^>]*\bhref=)["\'](?:https?:)?//[^"\']+["\']',
+                      r'\1"#"', text, flags=re.I,
+                  )
+                  text = re.sub(r'(["\'])/(?!/)', r'\1', text)
+              else:
+                  text = text.replace("'/play?", "'play.html?")
+                  text = text.replace("\"/play?", "\"play.html?")
+                  text = text.replace("'/gta3/", "'gta3/")
+                  text = text.replace("\"/gta3/", "\"gta3/")
+                  text = text.replace("'/b/", "'b/")
+                  text = text.replace("\"/b/", "\"b/")
+              path.write_text(text, encoding='utf-8')
+          PY
           test -s _site/index.html || { echo 'ERROR: Could not retrieve public index.html'; exit 1; }
           touch _site/.nojekyll
           printf 'Downloaded files: '
@@ -64,3 +127,4 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
