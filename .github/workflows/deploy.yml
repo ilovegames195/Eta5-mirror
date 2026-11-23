@@ -52,11 +52,6 @@ jobs:
             'https://eta5.vercel.app/' || true
           # Dynamic launcher routes are not discoverable as ordinary links.
           wget \
-            --page-requisites \
-            --convert-links \
-            --adjust-extension \
-            --no-host-directories \
-            --directory-prefix=_site \
             --timeout=20 \
             --tries=2 \
             --no-verbose \
@@ -123,6 +118,9 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+
+      - name: Wait for artifact registration
+        run: sleep 5
 
       - name: Deploy to GitHub Pages
         id: deployment
