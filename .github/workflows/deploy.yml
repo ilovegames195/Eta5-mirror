@@ -1,0 +1,66 @@
+name: Download public ETA5 pages and deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  mirror-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Download publicly accessible frontend files
+        shell: bash
+        run: |
+          set -u
+          mkdir -p _site
+          # Collect HTML, styles, scripts, and images linked from the public site.
+          # This cannot recover Vercel server code, private files, or game data.
+          wget \
+            --recursive \
+            --level=3 \
+            --page-requisites \
+            --convert-links \
+            --adjust-extension \
+            --no-parent \
+            --no-host-directories \
+            --directory-prefix=_site \
+            --quota=200m \
+            --timeout=20 \
+            --tries=2 \
+            --wait=0.2 \
+            --execute robots=on \
+            --no-verbose \
+            'https://eta5.vercel.app/' || true
+          test -s _site/index.html || { echo 'ERROR: Could not retrieve public index.html'; exit 1; }
+          touch _site/.nojekyll
+          printf 'Downloaded files: '
+          find _site -type f | wc -l
+          du -sh _site
+
+      - name: Publish website files
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
